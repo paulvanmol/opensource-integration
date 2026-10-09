@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROC PYTHON & PROC R in SAS Viya</title>
+<style>
+  /* ── Reset & base ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden;
+               font-family: 'Segoe UI', Helvetica, Arial, sans-serif; }
+
+  /* ── Colour palette ───────────────────────────────────────── */
+  :root {
+    --sas-blue:    #0766D1;
+    --sas-dark:    #003865;
+    --sas-light:   #E8F1FC;
+    --accent:      #E69F00;
+    --r-blue:      #276DC3;
+    --py-yellow:   #F7C948;
+    --bg:          #F5F7FA;
+    --text:        #1A1A2E;
+    --code-bg:     #1E1E2E;
+    --code-text:   #CDD6F4;
+    --muted:       #6B7280;
+    --border:      #D1D5DB;
+    --green:       #16A34A;
+    --red:         #DC2626;
+  }
+
+  /* ── Slide container ──────────────────────────────────────── */
+  #deck { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: none; flex-direction: column;
+    padding: 48px 64px 36px;
+    background: var(--bg); color: var(--text);
+    opacity: 0; transition: opacity 0.25s ease;
+  }
+  .slide.active { display: flex; opacity: 1; }
+
+  /* ── Title slide ──────────────────────────────────────────── */
+  .slide.title-slide {
+    background: linear-gradient(145deg, var(--sas-dark) 0%, var(--sas-blue) 100%);
+    color: #fff; justify-content: center; align-items: flex-start; gap: 20px;
+  }
+  .slide.title-slide .kicker {
+    font-size: 13px; letter-spacing: 3px; text-transform: uppercase;
+    color: rgba(255,255,255,0.65); font-weight: 600;
+  }
+  .slide.title-slide h1 {
+    font-size: 42px; font-weight: 700; line-height: 1.15; max-width: 820px;
+  }
+  .slide.title-slide .subtitle {
+    font-size: 18px; color: rgba(255,255,255,0.80); max-width: 640px; line-height: 1.5;
+  }
+  .slide.title-slide .meta {
+    margin-top: 12px; font-size: 13px; color: rgba(255,255,255,0.55);
+    display: flex; gap: 32px;
+  }
+  .slide.title-slide .meta span::before { content: "◆ "; color: var(--accent); }
+
+  /* ── Section divider ──────────────────────────────────────── */
+  .slide.divider {
+    background: var(--sas-dark); color: #fff;
+    justify-content: center; align-items: flex-start; gap: 14px;
+  }
+  .slide.divider .section-num {
+    font-size: 72px; font-weight: 800; color: rgba(255,255,255,0.12);
+    line-height: 1; position: absolute; right: 64px; bottom: 40px;
+  }
+  .slide.divider h2 { font-size: 36px; font-weight: 700; max-width: 780px; }
+  .slide.divider p  { font-size: 17px; color: rgba(255,255,255,0.72); max-width: 680px; line-height: 1.6; }
+
+  /* ── Content slides ───────────────────────────────────────── */
+  .slide h2 { font-size: 26px; font-weight: 700; color: var(--sas-blue);
+              border-bottom: 3px solid var(--sas-blue); padding-bottom: 10px; margin-bottom: 22px; }
+  /* Divider slides override h2 back to white */
+  .slide.divider h2 { color: #fff; border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+  .slide h3 { font-size: 17px; font-weight: 600; color: var(--sas-dark); margin: 18px 0 8px; }
+
+  .slide p  { font-size: 16px; line-height: 1.65; margin-bottom: 10px; color: var(--text); }
+  .slide ul, .slide ol { padding-left: 22px; margin-bottom: 12px; }
+  .slide li { font-size: 15px; line-height: 1.7; margin-bottom: 4px; }
+  .slide li strong { color: var(--sas-dark); }
+
+  /* ── Code blocks ──────────────────────────────────────────── */
+  pre {
+    background: var(--code-bg); color: var(--code-text);
+    border-radius: 8px; padding: 14px 18px;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px; line-height: 1.55; overflow-x: auto;
+    margin: 8px 0; border-left: 4px solid var(--sas-blue);
+    max-height: 340px; overflow-y: auto;
+  }
+  pre.r   { border-left-color: var(--r-blue); }
+  pre.py  { border-left-color: var(--py-yellow); }
+  pre.sas { border-left-color: var(--sas-blue); }
+
+  /* ── Syntax highlighting (manual, lightweight) ────────────── */
+  .kw  { color: #89B4FA; font-weight: 600; }   /* keyword   */
+  .fn  { color: #CBA6F7; }                      /* function  */
+  .str { color: #A6E3A1; }                      /* string    */
+  .cm  { color: #585B70; font-style: italic; }  /* comment   */
+  .num { color: #FAB387; }                      /* number    */
+  .op  { color: #89DCEB; }                      /* operator  */
+
+  /* ── Two-column layout ────────────────────────────────────── */
+  .cols { display: flex; gap: 28px; flex: 1; align-items: flex-start; }
+  .col  { flex: 1; min-width: 0; }
+  .col-label {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 4px; margin-bottom: 6px;
+  }
+  .col-label.py  { background: #FEF3C7; color: #92400E; }
+  .col-label.r   { background: #DBEAFE; color: #1E40AF; }
+  .col-label.sas { background: #EDE9FE; color: #5B21B6; }
+
+  /* ── Tables ───────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 10px 0; }
+  th { background: var(--sas-dark); color: #fff; padding: 8px 12px;
+       text-align: left; font-weight: 600; }
+  td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: #F0F4FF; }
+  td code, th code {
+    background: rgba(7,102,209,0.10); padding: 1px 5px; border-radius: 3px;
+    font-family: 'Cascadia Code','Fira Code','Consolas',monospace; font-size: 12px;
+  }
+
+  /* ── Callout boxes ────────────────────────────────────────── */
+  .note { background: #EFF6FF; border-left: 4px solid var(--sas-blue);
+          padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 14px; }
+  .tip  { background: #FFFBEB; border-left: 4px solid var(--accent);
+          padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 14px; }
+  .warn { background: #FFF1F2; border-left: 4px solid var(--red);
+          padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 10px 0; font-size: 14px; }
+  .note strong, .tip strong, .warn strong { display: block; margin-bottom: 3px; font-size: 13px;
+    letter-spacing: 0.5px; text-transform: uppercase; }
+
+  /* ── Badges ───────────────────────────────────────────────── */
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px;
+    border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; vertical-align: middle;
+  }
+  .badge.new   { background: #D1FAE5; color: #065F46; }
+  .badge.py    { background: #FEF3C7; color: #92400E; }
+  .badge.r     { background: #DBEAFE; color: #1E40AF; }
+
+  /* ── Slide footer ─────────────────────────────────────────── */
+  .slide-footer {
+    position: absolute; bottom: 16px; left: 64px; right: 64px;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--muted);
+    border-top: 1px solid var(--border); padding-top: 10px;
+  }
+  .slide-footer .logo {
+    font-weight: 800; color: var(--sas-blue); letter-spacing: -0.5px; font-size: 13px;
+  }
+
+  /* ── Navigation ───────────────────────────────────────────── */
+  #nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    display: flex; justify-content: center; align-items: center; gap: 16px;
+    padding: 10px; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+  }
+  #nav button {
+    padding: 6px 20px; border: none; border-radius: 6px; cursor: pointer;
+    font-size: 14px; font-weight: 600; transition: background 0.15s;
+  }
+  #nav .btn-prev { background: #374151; color: #fff; }
+  #nav .btn-prev:hover { background: #4B5563; }
+  #nav .btn-next { background: var(--sas-blue); color: #fff; }
+  #nav .btn-next:hover { background: #0550A0; }
+  #nav .counter  { color: rgba(255,255,255,0.7); font-size: 13px; min-width: 80px; text-align: center; }
+
+  /* ── Progress bar ─────────────────────────────────────────── */
+  #progress { position: fixed; top: 0; left: 0; height: 3px;
+              background: var(--sas-blue); transition: width 0.2s ease; z-index: 200; }
+
+  /* ── Agenda bullets ───────────────────────────────────────── */
+  .agenda-item {
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 15px;
+  }
+  .agenda-item .time {
+    min-width: 52px; font-size: 12px; font-weight: 700; color: var(--sas-blue);
+    background: var(--sas-light); padding: 2px 7px; border-radius: 4px; text-align: center;
+  }
+  .agenda-item .label { font-weight: 600; }
+  .agenda-item .desc  { color: var(--muted); font-size: 14px; }
+
+  /* ── Big stat callout ─────────────────────────────────────── */
+  .stat-row { display: flex; gap: 24px; margin: 12px 0; }
+  .stat-box {
+    flex: 1; background: #fff; border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px 20px; text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .stat-box .big { font-size: 36px; font-weight: 800; color: var(--sas-blue); line-height: 1; }
+  .stat-box .lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="deck">
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 1  —  TITLE
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide title-slide active">
+  <div class="kicker">SAS Viya Workshop</div>
+  <h1>PROC PYTHON &amp; PROC R<br>Open-Source Integration</h1>
+  <div class="subtitle">Using Python and R inside SAS — without leaving your existing pipelines</div>
+  <div class="meta">
+    <span>Novo Nordisk / Servier</span>
+    <span>Half-day workshop</span>
+    <span>SAS Viya 2026.03+</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 2  —  AGENDA (HALF-DAY)
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Workshop Agenda</h2>
+  <div class="agenda-item"><div class="time">20 min</div><div><span class="label">Why open-source integration?</span><div class="desc">Architecture, two integration modes, PROC PYTHON vs PROC R</div></div></div>
+  <div class="agenda-item"><div class="time">50 min</div><div><span class="label">Getting started — environment &amp; callbacks</span><div class="desc">Packages, virtual environments, sd2df / df2sd / symget / symput / show</div></div></div>
+  <div class="agenda-item"><div class="time">30 min</div><div><span class="label">Visualisation</span><div class="desc">matplotlib (Python) &nbsp;·&nbsp; ggplot2 and rplot() (R)</div></div></div>
+  <div class="agenda-item"><div class="time">45 min</div><div><span class="label">PROC PYTHON use cases</span><div class="desc">REST APIs · web scraping · Azure / AWS · SharePoint / OneDrive</div></div></div>
+  <div class="agenda-item"><div class="time">50 min</div><div><span class="label">PROC R use cases — clinical data</span><div class="desc">ADaM exploration · KM curves · MMRM vs PROC MIXED</div></div></div>
+  <div class="agenda-item"><div class="time">25 min</div><div><span class="label">PROC R — scripts &amp; flows</span><div class="desc">External .R files · infile= · SAS Studio Flow R Program node</div></div></div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>PROC PYTHON &amp; PROC R Workshop</span><span></span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 3  —  WHY
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Why open-source integration?</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>The challenge</h3>
+      <ul>
+        <li>SAS is the <strong>regulatory gold standard</strong> for clinical submissions</li>
+        <li>R and Python are where <strong>new statistical methods</strong> and data tooling live</li>
+        <li>Teams were running two separate environments — no governance, no audit trail</li>
+      </ul>
+      <div class="note" style="margin-top:16px">
+        <strong>SAS Viya answer</strong>
+        Run Python and R <em>inside</em> SAS. Your data, macro variables, and libraries stay in SAS. You add capability without rewriting.
+      </div>
+    </div>
+    <div class="col">
+      <h3>Two integration directions</h3>
+      <table>
+        <tr><th>Direction</th><th>Tool</th><th>Use when</th></tr>
+        <tr><td><strong>Python/R inside SAS</strong></td><td><code>PROC PYTHON</code><br><code>PROC R</code></td><td>Extending SAS pipelines</td></tr>
+        <tr><td><strong>SAS inside Python/R</strong></td><td><code>swat</code> package<br><code>saspy</code></td><td>Python/R-first workflows</td></tr>
+      </table>
+      <div class="tip" style="margin-top:14px">
+        <strong>Today's focus</strong>
+        PROC PYTHON and PROC R — the "inside SAS" path. Both run on the SAS compute server. Data never leaves SAS.
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>Why Open-Source Integration?</span><span>2 / 7 topics</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 4  —  PROC PYTHON vs PROC R
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>PROC PYTHON vs PROC R — what's different?</h2>
+  <table>
+    <tr><th></th><th>PROC PYTHON <span class="badge py">Python</span></th><th>PROC R <span class="badge r">R</span> <span class="badge new">New 2026.03</span></th></tr>
+    <tr><td><strong>Available since</strong></td><td>SAS Viya 2021.1</td><td>SAS Viya 2026.03</td></tr>
+    <tr><td><strong>Submit block</strong></td><td><code>submit; ... endsubmit;</code></td><td><code>submit; ... endsubmit;</code></td></tr>
+    <tr><td><strong>Import SAS dataset</strong></td><td><code>SAS.sd2df("lib.ds")</code></td><td><code>sd2df("lib.ds")</code></td></tr>
+    <tr><td><strong>Export to SAS</strong></td><td><code>SAS.df2sd(df, "lib.ds")</code></td><td><code>df2sd(df, "lib.ds")</code></td></tr>
+    <tr><td><strong>Read macro var</strong></td><td><code>SAS.symget("name")</code></td><td><code>symget("name")</code></td></tr>
+    <tr><td><strong>Results window</strong></td><td><code>SAS.show(fig)</code></td><td><code>show(obj)</code> / <code>rplot(p)</code></td></tr>
+    <tr><td><strong>External script</strong></td><td><code>proc python infile=&quot;f.py&quot;;</code></td><td><code>proc r infile="f.R";</code></td></tr>
+    <tr><td><strong>Pharma sweet spot</strong></td><td>APIs, cloud, ingestion, Office365</td><td>Clinical stats, KM curves, MMRM, TLFs</td></tr>
+  </table>
+  <div class="note" style="margin-top:12px">
+    <strong>The one thing to remember</strong>
+    Python callbacks always use the <code>SAS.</code> prefix — it's an object. R injects them directly into the namespace — no prefix.
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>PROC PYTHON vs PROC R</span><span></span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 5  —  DIVIDER: GETTING STARTED
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide divider">
+  <div class="section-num">01</div>
+  <p style="color:rgba(255,255,255,0.5);font-size:13px;letter-spacing:2px;text-transform:uppercase">Getting started</p>
+  <h2>Environment, anatomy of a PROC call, and callback methods</h2>
+  <p>Understanding your Python and R installation — and how data moves back and forth between SAS and the open-source session.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 6  —  CHECK YOUR ENVIRONMENT
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Section 0 — Check your environment</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="col-label py">Python</div>
+      <pre class="py"><span class="kw">proc python</span>;
+<span class="kw">submit</span>;
+<span class="kw">import</span> sys
+<span class="kw">from</span> importlib.metadata <span class="kw">import</span> distributions
+
+<span class="fn">print</span>(<span class="str">f"Python: {sys.version}"</span>)
+pkgs = <span class="fn">sorted</span>([<span class="str">f"  {d.name} {d.version}"</span>
+        <span class="kw">for</span> d <span class="kw">in</span> <span class="fn">distributions</span>()])
+<span class="fn">print</span>(<span class="str">f"{len(pkgs)} packages installed"</span>)
+<span class="kw">endsubmit</span>;
+<span class="kw">run</span>;</pre>
+      <ul>
+        <li><code>importlib.metadata</code> — standard library, no pip install</li>
+        <li>Output goes to the <strong>SAS log</strong></li>
+        <li>378 packages on this image — highlight: pandas, requests, matplotlib, scikit-learn, swat</li>
+      </ul>
+    </div>
+    <div class="col">
+      <div class="col-label r">R</div>
+      <pre class="r"><span class="kw">proc r</span>;
+<span class="kw">submit</span>;
+ip &lt;- <span class="fn">as.data.frame</span>(
+  <span class="fn">installed.packages</span>()[,
+    <span class="fn">c</span>(<span class="str">"Package"</span>,<span class="str">"Version"</span>)])
+<span class="cm"># Full list to log</span>
+<span class="kw">for</span> (i <span class="kw">in</span> <span class="fn">seq_len</span>(<span class="fn">nrow</span>(ip)))
+  <span class="fn">cat</span>(<span class="fn">sprintf</span>(<span class="str">"%-28s %s\n"</span>,
+      ip$Package[i], ip$Version[i]))
+<span class="cm"># Export to SAS for PROC PRINT</span>
+<span class="fn">df2sd</span>(ip, <span class="str">"work.r_packages"</span>)
+<span class="kw">endsubmit</span>;
+<span class="kw">run</span>;</pre>
+      <ul>
+        <li><code>show()</code> caps at 5 rows — use <code>cat()</code> + <code>df2sd()</code> for full list</li>
+        <li>150 packages: ggplot2, dplyr, survival, nlme, tidyverse, forecast</li>
+        <li><code>survminer</code> not installed — KM demo uses base survival + ggplot2</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>Section 0 — Environment Check</span><span>demo: Section 0</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 7  —  CALLBACK METHODS DETAIL
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Callback methods — moving data between SAS and open source</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>Data transfer</h3>
+      <pre class="py"><span class="cm"># Python — SAS. prefix always required</span>
+adsl = <span class="fn">SAS.sd2df</span>(<span class="str">"work.adsl"</span>)    <span class="cm"># SAS → pandas</span>
+<span class="fn">SAS.df2sd</span>(df, <span class="str">"work.result"</span>)   <span class="cm"># pandas → SAS</span></pre>
+      <pre class="r"><span class="cm"># R — no prefix, functions injected directly</span>
+adsl &lt;- <span class="fn">sd2df</span>(<span class="str">"work.adsl"</span>)       <span class="cm"># SAS → data.frame</span>
+<span class="fn">df2sd</span>(df, <span class="str">"work.result"</span>)        <span class="cm"># data.frame → SAS</span></pre>
+      <h3>Macro variables</h3>
+      <pre class="py"><span class="cm"># Python</span>
+trt = <span class="fn">SAS.symget</span>(<span class="str">"trt_filter"</span>)  <span class="cm"># read from SAS</span>
+<span class="fn">SAS.symput</span>(<span class="str">"py_n"</span>, <span class="fn">str</span>(n))      <span class="cm"># write to SAS</span></pre>
+      <pre class="r"><span class="cm"># R</span>
+trt &lt;- <span class="fn">symget</span>(<span class="str">"trt_filter"</span>)     <span class="cm"># read from SAS</span>
+<span class="fn">symput</span>(<span class="str">"r_n"</span>, <span class="fn">as.character</span>(n)) <span class="cm"># write to SAS</span></pre>
+    </div>
+    <div class="col">
+      <h3>Output</h3>
+      <pre class="py"><span class="cm"># Python: show a DataFrame or figure</span>
+<span class="fn">SAS.show</span>(df)      <span class="cm"># DataFrame → Results window</span>
+<span class="fn">SAS.show</span>(fig)     <span class="cm"># matplotlib Figure → Results</span></pre>
+      <pre class="r"><span class="cm"># R: show a data frame or plot</span>
+<span class="fn">show</span>(df, title=<span class="str">"My Table"</span>)  <span class="cm"># → Results window</span>
+<span class="fn">rplot</span>(p)                   <span class="cm"># ggplot2 → Results</span>
+<span class="fn">renderImage</span>(<span class="str">"/path/f.png"</span>) <span class="cm"># saved file → Results</span></pre>
+      <div class="note" style="margin-top:14px">
+        <strong>Key insight</strong>
+        <code>show()</code> in R has a default row limit of 5. To display all rows: use <code>df2sd()</code> and render with <code>PROC PRINT</code> from SAS.
+      </div>
+      <div class="tip" style="margin-top:10px">
+        <strong>Demo — Section 2</strong>
+        Same ADSL summarisation in Python and R. <code>PROC COMPARE</code> confirms zero differences in the output datasets.
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>Callback Methods</span><span>demo: Section 2</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 8  —  DIVIDER: VISUALISATION
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide divider">
+  <div class="section-num">02</div>
+  <p style="color:rgba(255,255,255,0.5);font-size:13px;letter-spacing:2px;text-transform:uppercase">Visualisation</p>
+  <h2>matplotlib in Python &nbsp;·&nbsp; ggplot2 and rplot() in R</h2>
+  <p>Rendering graphs directly in the SAS Results window — no file exports, no external viewers.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 9  —  VIZ: PYTHON matplotlib
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Visualisation — Python: matplotlib</h2>
+  <div class="cols">
+    <div class="col">
+      <pre class="py"><span class="kw">import</span> matplotlib
+matplotlib.<span class="fn">use</span>(<span class="str">'Agg'</span>)   <span class="cm"># no display on server</span>
+<span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
+
+adsl = <span class="fn">SAS.sd2df</span>(<span class="str">"work.adsl"</span>)
+
+fig, axes = plt.<span class="fn">subplots</span>(<span class="num">1</span>, <span class="num">2</span>, figsize=(<span class="num">10</span>,<span class="num">4</span>))
+
+<span class="cm"># Age histogram by treatment</span>
+<span class="kw">for</span> trt, grp <span class="kw">in</span> adsl.<span class="fn">groupby</span>(<span class="str">"TRT01P"</span>):
+    axes[<span class="num">0</span>].<span class="fn">hist</span>(grp[<span class="str">"AGE"</span>], bins=<span class="num">7</span>,
+                alpha=<span class="num">0.6</span>, label=trt)
+axes[<span class="num">0</span>].<span class="fn">legend</span>()
+
+<span class="cm"># BMI boxplot</span>
+groups = [grp[<span class="str">"BMI"</span>].values
+          <span class="kw">for</span> _, grp <span class="kw">in</span> adsl.<span class="fn">groupby</span>(<span class="str">"TRT01P"</span>)]
+axes[<span class="num">1</span>].<span class="fn">boxplot</span>(groups, patch_artist=<span class="kw">True</span>)
+axes[<span class="num">1</span>].<span class="fn">set_xticks</span>([<span class="num">1</span>,<span class="num">2</span>])
+axes[<span class="num">1</span>].<span class="fn">set_xticklabels</span>([<span class="str">"DrugA"</span>,<span class="str">"Placebo"</span>])
+
+plt.<span class="fn">tight_layout</span>()
+<span class="fn">SAS.show</span>(fig)   <span class="cm"># renders in Results window</span></pre>
+    </div>
+    <div class="col">
+      <h3>How it works</h3>
+      <ul>
+        <li><code>matplotlib.use('Agg')</code> must come <strong>before</strong> importing pyplot — SAS compute server has no display</li>
+        <li><code>SAS.show(fig)</code> accepts a matplotlib <code>Figure</code> object — rendered as SVG in the Results panel</li>
+        <li>To save and reuse: <code>fig.savefig('/path/plot.png')</code> then <code>SAS.show('/path/plot.png')</code></li>
+      </ul>
+      <div class="tip" style="margin-top:14px">
+        <strong>matplotlib 3.9+ note</strong>
+        The <code>labels=</code> parameter was removed from <code>boxplot()</code>. Use <code>set_xticks()</code> + <code>set_xticklabels()</code> instead.
+      </div>
+      <h3>Alternatives</h3>
+      <ul>
+        <li><strong>seaborn</strong> — statistical graphics built on matplotlib</li>
+        <li><strong>plotly</strong> — interactive charts (both installed)</li>
+        <li><strong>altair</strong> — declarative grammar similar to ggplot2</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>Visualisation — Python</span><span>demo: Section 3a</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 10  —  VIZ: R ggplot2
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Visualisation — R: ggplot2 and rplot()</h2>
+  <div class="cols">
+    <div class="col">
+      <pre class="r">library(ggplot2); library(dplyr)
+adsl &lt;- <span class="fn">sd2df</span>(<span class="str">"work.adsl"</span>)
+
+<span class="cm"># Plot 1: age histogram</span>
+p1 &lt;- <span class="fn">ggplot</span>(adsl, <span class="fn">aes</span>(x=AGE, fill=TRT01P)) +
+  <span class="fn">geom_histogram</span>(binwidth=<span class="num">5</span>, alpha=<span class="num">0.7</span>) +
+  <span class="fn">scale_fill_manual</span>(
+    values=<span class="fn">c</span>(<span class="str">"#0072B2"</span>,<span class="str">"#E69F00"</span>)) +
+  <span class="fn">theme_minimal</span>()
+<span class="fn">rplot</span>(p1)      <span class="cm"># → Results window</span>
+
+<span class="cm"># Plot 2: sex proportion bar</span>
+p2 &lt;- <span class="fn">ggplot</span>(adsl, <span class="fn">aes</span>(x=TRT01P, fill=SEX)) +
+  <span class="fn">geom_bar</span>(position=<span class="str">"fill"</span>) +
+  <span class="fn">scale_y_continuous</span>(
+    labels=scales::<span class="fn">percent_format</span>())
+<span class="fn">rplot</span>(p2)
+
+<span class="cm"># Plot 3: BMI boxplot</span>
+p3 &lt;- <span class="fn">ggplot</span>(adsl,
+        <span class="fn">aes</span>(x=TRT01P, y=BMI, fill=TRT01P)) +
+  <span class="fn">geom_boxplot</span>(alpha=<span class="num">0.7</span>)
+<span class="fn">rplot</span>(p3)</pre>
+    </div>
+    <div class="col">
+      <h3>rplot() behaviour</h3>
+      <ul>
+        <li>Sends any ggplot2 or base R graphic to the Results window</li>
+        <li>Multiple <code>rplot()</code> calls in <strong>one PROC R step</strong> produce multiple outputs</li>
+        <li>Save to file: <code>rplot(p, filename="plot.png")</code> — saved to <code>sas$workpath</code></li>
+        <li>Render saved file: <code>renderImage("/path/plot.png")</code></li>
+      </ul>
+      <h3>Why ggplot2 for pharma?</h3>
+      <div class="note">
+        <strong>Grammar of graphics</strong>
+        Define <em>data</em>, <em>aesthetic mapping</em> (what goes on which axis), and <em>geometry</em> (histogram, step, boxplot). This maps directly to how clinical figures are specified in SAPs. Consistent across all TLF types.
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>Visualisation — R</span><span>demo: Section 3b</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 11  —  DIVIDER: PROC PYTHON USE CASES
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide divider">
+  <div class="section-num">03</div>
+  <p style="color:rgba(255,255,255,0.5);font-size:13px;letter-spacing:2px;text-transform:uppercase">PROC PYTHON use cases</p>
+  <h2>REST APIs · Web scraping · Cloud · Office 365</h2>
+  <p>Where Python adds the most value: reaching external systems and pulling data into SAS that SAS cannot natively access.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 12  —  REST API
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>PROC PYTHON — REST API: ClinicalTrials.gov</h2>
+  <div class="cols">
+    <div class="col">
+      <pre class="sas"><span class="cm">/* Change sponsor to switch customer */</span>
+<span class="op">%let</span> sponsor    = Novo Nordisk;
+<span class="op">%let</span> search_term = GLP-1;</pre>
+      <pre class="py"><span class="kw">import</span> requests, pandas <span class="kw">as</span> pd
+
+sponsor     = <span class="fn">SAS.symget</span>(<span class="str">"sponsor"</span>)
+search_term = <span class="fn">SAS.symget</span>(<span class="str">"search_term"</span>)
+
+url    = <span class="str">"https://clinicaltrials.gov/api/v2/studies"</span>
+params = {
+    <span class="str">"query.spons"</span>:          sponsor,
+    <span class="str">"query.term"</span>:           search_term,
+    <span class="str">"filter.overallStatus"</span>: <span class="str">"COMPLETED"</span>,
+    <span class="str">"pageSize"</span>: <span class="num">10</span>
+}
+
+<span class="kw">try</span>:
+    resp = requests.<span class="fn">get</span>(url, params=params,
+                         timeout=<span class="num">15</span>)
+    resp.<span class="fn">raise_for_status</span>()
+    <span class="cm"># ... parse JSON, build DataFrame ...</span>
+    <span class="fn">SAS.df2sd</span>(df, <span class="str">"work.ct_trials"</span>)
+    <span class="fn">SAS.show</span>(df)
+<span class="kw">except</span> requests.exceptions.ConnectionError:
+    <span class="fn">print</span>(<span class="str">"No internet access."</span>)</pre>
+    </div>
+    <div class="col">
+      <h3>What this demonstrates</h3>
+      <ul>
+        <li><code>SAS.symget()</code> injects SAS macro variables as Python strings — parameters never hardcoded</li>
+        <li><code>raise_for_status()</code> propagates HTTP errors to the SAS log</li>
+        <li><code>try/except</code> degrades gracefully when network is unavailable</li>
+        <li>Result lands in <code>work.ct_trials</code> — ready for any SAS procedure</li>
+      </ul>
+      <h3>Same pattern for</h3>
+      <ul>
+        <li><strong>Azure Blob Storage</strong> — <code>azure-storage-blob</code> (installed)</li>
+        <li><strong>AWS S3</strong> — <code>boto3</code></li>
+        <li><strong>SharePoint / OneDrive</strong> — <code>office365-rest-python-client</code></li>
+        <li><strong>Internal APIs</strong> — CTMS, pharmacovigilance, EHR</li>
+      </ul>
+      <div class="tip">
+        <strong>Live demo</strong>
+        Change <code>%let sponsor = Servier;</code> — re-run same code, different data. Shows parameter-driven API calls in one line.
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>PROC PYTHON — REST API</span><span>demo: Section 7</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 13  —  PYTHON USE CASES OVERVIEW
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>PROC PYTHON — other use cases</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>Web scraping</h3>
+      <pre class="py"><span class="kw">import</span> requests
+<span class="kw">from</span> bs4 <span class="kw">import</span> BeautifulSoup
+
+resp = requests.<span class="fn">get</span>(<span class="str">"https://ema.europa.eu/..."</span>)
+soup = <span class="fn">BeautifulSoup</span>(resp.text, <span class="str">"html.parser"</span>)
+<span class="cm"># Extract approved indications, dates ...</span>
+<span class="fn">SAS.df2sd</span>(df, <span class="str">"work.ema_labels"</span>)</pre>
+      <ul>
+        <li><code>beautifulsoup4</code> is installed (4.15)</li>
+        <li>Use when no public API exists (EMA product pages, package inserts)</li>
+      </ul>
+      <h3>Azure Blob / SharePoint</h3>
+      <pre class="py"><span class="cm"># Read CSV from Azure Blob into SAS</span>
+<span class="kw">from</span> azure.storage.blob <span class="kw">import</span> BlobServiceClient
+<span class="kw">import</span> pandas <span class="kw">as</span> pd, io
+
+conn = <span class="fn">SAS.symget</span>(<span class="str">"AZURE_CONN_STR"</span>)
+client = BlobServiceClient.<span class="fn">from_connection_string</span>(conn)
+data = client.<span class="fn">get_blob_client</span>(
+    container=<span class="str">"clinical"</span>, blob=<span class="str">"adsl.csv"</span>
+).<span class="fn">download_blob</span>().<span class="fn">readall</span>()
+df = pd.<span class="fn">read_csv</span>(io.<span class="fn">BytesIO</span>(data))
+<span class="fn">SAS.df2sd</span>(df, <span class="str">"work.adsl_cloud"</span>)</pre>
+    </div>
+    <div class="col">
+      <h3>When to use PROC PYTHON vs PROC R</h3>
+      <table>
+        <tr><th>Task</th><th>Use</th></tr>
+        <tr><td>Call a REST API</td><td><span class="badge py">Python</span></td></tr>
+        <tr><td>Read Azure / S3 / GCS</td><td><span class="badge py">Python</span></td></tr>
+        <tr><td>Parse XML, Avro, JSON</td><td><span class="badge py">Python</span></td></tr>
+        <tr><td>SharePoint / OneDrive</td><td><span class="badge py">Python</span></td></tr>
+        <tr><td>Kaplan-Meier curve</td><td><span class="badge r">R</span></td></tr>
+        <tr><td>Mixed models (MMRM)</td><td><span class="badge r">R</span></td></tr>
+        <tr><td>Forest / waterfall plots</td><td><span class="badge r">R</span></td></tr>
+        <tr><td>ggplot2 TLF graphics</td><td><span class="badge r">R</span></td></tr>
+        <tr><td>Data exploration / ADSL</td><td><span class="badge r">R</span></td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>PROC PYTHON — Use Cases</span><span></span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 14  —  DIVIDER: PROC R CLINICAL
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide divider">
+  <div class="section-num">04</div>
+  <p style="color:rgba(255,255,255,0.5);font-size:13px;letter-spacing:2px;text-transform:uppercase">PROC R — Clinical data</p>
+  <h2>ADaM datasets · Kaplan-Meier curves · Mixed models</h2>
+  <p>Where PROC R adds the most value in pharma: statistical analysis and clinical graphics on ADaM-structured data.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 15  —  KM CURVE
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>PROC R — Kaplan-Meier survival curve (ADTTE)</h2>
+  <div class="cols">
+    <div class="col">
+      <pre class="r">library(survival); library(ggplot2)
+
+adtte  &lt;- <span class="fn">sd2df</span>(<span class="str">"work.adtte"</span>)
+<span class="cm"># ADTTE: AVAL=time(days), CNSR=1 censored</span>
+km_fit &lt;- <span class="fn">survfit</span>(
+  <span class="fn">Surv</span>(AVAL, CNSR==<span class="num">0</span>) ~ TRT01P, data=adtte)
+
+<span class="cm"># Tidy fit into data frame</span>
+km_df &lt;- <span class="fn">data.frame</span>(
+  time=km_fit$time, surv=km_fit$surv,
+  upper=km_fit$upper, lower=km_fit$lower,
+  strata=<span class="fn">rep</span>(<span class="fn">names</span>(km_fit$strata),
+                km_fit$strata))
+
+<span class="cm"># Log-rank p-value</span>
+lr   &lt;- <span class="fn">survdiff</span>(<span class="fn">Surv</span>(AVAL,CNSR==<span class="num">0</span>)~TRT01P,
+                  data=adtte)
+pval &lt;- <span class="fn">round</span>(<span class="num">1</span> - <span class="fn">pchisq</span>(lr$chisq,df=<span class="num">1</span>),<span class="num">3</span>)
+
+p &lt;- <span class="fn">ggplot</span>(km_df,
+        <span class="fn">aes</span>(x=time, y=surv,
+            color=strata, fill=strata)) +
+  <span class="fn">geom_step</span>(linewidth=<span class="num">1.1</span>) +
+  <span class="fn">geom_ribbon</span>(<span class="fn">aes</span>(ymin=lower,ymax=upper),
+              alpha=<span class="num">0.15</span>, color=<span class="kw">NA</span>) +
+  <span class="fn">annotate</span>(<span class="str">"text"</span>,x=<span class="num">300</span>,y=<span class="num">0.95</span>,
+    label=<span class="fn">paste0</span>(<span class="str">"p = "</span>,pval))
+<span class="fn">rplot</span>(p)</pre>
+    </div>
+    <div class="col">
+      <h3>Outputs from the demo</h3>
+      <ul>
+        <li>KM step curve with 95% CI ribbon</li>
+        <li>Log-rank p-value annotated on the plot</li>
+        <li><code>work.km_median</code> — median OS per arm returned to SAS</li>
+        <li><code>work.km_atrisk</code> — number at risk table at t=0,100,...,500</li>
+      </ul>
+      <h3>PROC LIFETEST — the SAS equivalent</h3>
+      <pre class="sas"><span class="kw">proc lifetest</span> data=work.adtte
+  plots=survival(atrisk=<span class="num">0</span> to <span class="num">600</span> by <span class="num">100</span>);
+  time AVAL * CNSR(<span class="num">1</span>);
+  strata TRT01P;
+<span class="kw">run</span>;</pre>
+      <div class="note" style="margin-top:10px">
+        <strong>Discussion</strong>
+        Both produce identical KM estimates. R gives more visual flexibility. SAS gives validated ODS output for regulatory submission. Both can live in the same program.
+      </div>
+      <div class="tip" style="margin-top:8px">
+        <strong>survminer upgrade</strong>
+        If <code>survminer</code> is installed: <code>ggsurvplot()</code> gives risk table, CI, and p-value in a single call.
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>PROC R — Kaplan-Meier</span><span>demo: Section 4</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 16  —  MMRM vs PROC MIXED
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>PROC R — Mixed model (MMRM) vs PROC MIXED</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="col-label r">R — nlme</div>
+      <pre class="r">library(nlme)
+endpoint &lt;- <span class="fn">symget</span>(<span class="str">"endpoint"</span>)  <span class="cm"># "HbA1c (%)"</span>
+adlb     &lt;- <span class="fn">sd2df</span>(<span class="str">"work.adlb"</span>)
+
+df &lt;- adlb <span class="op">%&gt;%</span>
+  <span class="fn">filter</span>(PARAM == endpoint) <span class="op">%&gt;%</span>
+  <span class="fn">mutate</span>(CHG=AVAL-BASE,
+         VISIT=<span class="fn">factor</span>(VISIT),
+         TRT01P=<span class="fn">factor</span>(TRT01P))
+
+model &lt;- <span class="fn">lme</span>(
+  fixed     = CHG ~ TRT01P * VISIT + BASE,
+  random    = ~<span class="num">1</span> | USUBJID,
+  data      = df,
+  na.action = na.omit)
+
+coef_tbl &lt;- <span class="fn">as.data.frame</span>(
+  <span class="fn">summary</span>(model)$tTable)
+<span class="fn">df2sd</span>(coef_tbl, <span class="str">"work.r_mmrm"</span>)
+<span class="fn">symput</span>(<span class="str">"r_converged"</span>, <span class="str">"YES"</span>)</pre>
+    </div>
+    <div class="col">
+      <div class="col-label sas">SAS — PROC MIXED</div>
+      <pre class="sas"><span class="kw">proc mixed</span> data=work.adlb;
+  where PARAM=<span class="str">"&amp;endpoint"</span>;
+  <span class="kw">class</span> USUBJID TRT01P VISIT;
+  model CHG = TRT01P VISIT
+              TRT01P*VISIT BASE
+              / ddfm=KR s;
+  repeated VISIT
+    / subject=USUBJID type=UN;
+  lsmeans TRT01P*VISIT / diff cl;
+  ods output LSMeans=work.sas_lsmeans;
+<span class="kw">run</span>;</pre>
+      <h3>Discussion points</h3>
+      <ul>
+        <li>Estimates are very close — same model, same data</li>
+        <li>Key difference: <strong>denominator df</strong> — SAS uses Kenward-Roger (<code>ddfm=KR</code>), the regulatory standard</li>
+        <li><code>symput("r_converged","YES")</code> — model metadata flows back to SAS</li>
+      </ul>
+      <div class="note" style="margin-top:8px">
+        <strong>Regulatory guidance</strong>
+        For submissions: <code>PROC MIXED</code> is the validated reference. R MMRM is valuable for cross-validation and exploratory analysis during development.
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>PROC R — Mixed Models</span><span>demo: Section 5</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 17  —  DIVIDER: SCRIPTS & FLOWS
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide divider">
+  <div class="section-num">05</div>
+  <p style="color:rgba(255,255,255,0.5);font-size:13px;letter-spacing:2px;text-transform:uppercase">External scripts</p>
+  <h2>PROC PYTHON &amp; PROC R — calling external script files</h2>
+  <p>Both procedures support an <code style="background:rgba(255,255,255,0.15);padding:2px 7px;border-radius:4px">infile=</code> option to load scripts from the server filesystem or SAS Content — no need to embed all code inline.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 18  —  EXTERNAL SCRIPTS (PYTHON + R)
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>External scripts — PROC PYTHON and PROC R</h2>
+  <div class="cols">
+    <div class="col">
+      <div class="col-label py">PROC PYTHON — infile=</div>
+      <pre class="sas"><span class="cm">/* Option 1: server filesystem path */</span>
+<span class="kw">proc python infile</span>=<span class="str">'/tmp/my_script.py'</span>;
+<span class="kw">submit</span>;
+<span class="fn">my_function</span>()          <span class="cm"># call function defined in script</span>
+<span class="fn">print</span>(<span class="str">"y = "</span> + y)
+<span class="kw">endsubmit</span>;
+<span class="kw">run</span>;
+
+<span class="cm">/* Option 2: fileref — server path */</span>
+<span class="kw">filename</span> pyScript <span class="str">'/path/analysis.py'</span>;
+<span class="kw">proc python infile</span>=pyScript;
+<span class="kw">run</span>;
+
+<span class="cm">/* Option 3: fileref — SAS Content (filesrvc) */</span>
+<span class="kw">filename</span> pyScript filesrvc
+  folderPath=<span class="str">'/My Folder'</span>
+  filename=<span class="str">'analysis.py'</span>;
+<span class="kw">proc python infile</span>=pyScript;
+<span class="kw">run</span>;</pre>
+    </div>
+    <div class="col">
+      <div class="col-label r">PROC R — infile=</div>
+      <pre class="sas"><span class="cm">/* Option 1: server filesystem path */</span>
+<span class="kw">proc r infile</span>=<span class="str">"/path/analysis.R"</span>;
+<span class="kw">run</span>;
+
+<span class="cm">/* Option 2: fileref — server path */</span>
+<span class="kw">filename</span> clinR <span class="str">"/path/analysis.R"</span>;
+<span class="kw">proc r infile</span>=clinR;
+<span class="kw">run</span>;
+
+<span class="cm">/* Option 3: fileref — SAS Content */</span>
+<span class="kw">filename</span> clinR filesrvc
+  folderPath=<span class="str">'/My Folder'</span>
+  filename=<span class="str">'analysis.R'</span>;
+<span class="kw">proc r infile</span>=clinR;
+<span class="kw">run</span>;</pre>
+      <div class="note" style="margin-top:10px">
+        <strong>infile= + submit block</strong>
+        For PROC PYTHON, the script is loaded first (defines functions/variables), then the optional <code>submit; ... endsubmit;</code> block can call those functions. PROC R works the same way.
+      </div>
+      <div class="tip" style="margin-top:8px">
+        <strong>SAS Content (filesrvc)</strong>
+        Stores scripts centrally in SAS Viya — no server filesystem access needed. Works with SAS Studio, Flows, and scheduled jobs.
+      </div>
+      <h3>Passing parameters via macro variables</h3>
+      <pre class="sas"><span class="op">%let</span> trt = DrugA;
+<span class="kw">filename</span> kmR <span class="str">"/path/km.R"</span>;
+<span class="kw">proc r infile</span>=kmR; <span class="kw">run</span>;
+<span class="op">%put</span> Median OS: <span class="op">&amp;</span>r_median_os days;</pre>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>External Scripts — PROC PYTHON &amp; PROC R</span><span>demo: Section 6</span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 19  —  GOVERNANCE
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Environment management &amp; governance</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>Python virtual environments</h3>
+      <pre class="sas"><span class="cm">/* Switch Python environment */</span>
+<span class="kw">options</span> set=PROC_PYPATH=
+  <span class="str">"/path/to/venv/bin/python"</span>;
+<span class="kw">options</span> set=LD_LIBRARY_PATH=
+  <span class="str">"/path/to/venv/lib"</span>;
+
+<span class="kw">proc python restart</span>;
+<span class="kw">submit</span>;
+<span class="kw">import</span> subprocess
+subprocess.<span class="fn">run</span>([<span class="str">"pip"</span>, <span class="str">"install"</span>, <span class="str">"-r"</span>,
+  <span class="str">"/path/requirements.txt"</span>])
+<span class="kw">endsubmit</span>;
+<span class="kw">run</span>;</pre>
+      <ul>
+        <li><code>requirements.txt</code> pins exact versions — reproducible across dev / test / prod</li>
+        <li>SAS Studio custom step on GitHub: create virtual environments without SAS admin</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3>R package management with renv</h3>
+      <pre class="r"><span class="cm"># Create a project-level lockfile</span>
+<span class="cm"># (run once in R, outside PROC R)</span>
+renv::<span class="fn">snapshot</span>()  <span class="cm"># save current state</span>
+renv::<span class="fn">restore</span>()   <span class="cm"># reinstall from lockfile</span></pre>
+      <ul>
+        <li><code>renv.lock</code> = R equivalent of <code>requirements.txt</code></li>
+        <li>Commit the lockfile to Git — anyone can reproduce the environment</li>
+      </ul>
+      <h3>Why this matters in pharma</h3>
+      <table>
+        <tr><th>Concern</th><th>Solution</th></tr>
+        <tr><td>CSR reproducibility</td><td>Pin package versions in lockfile</td></tr>
+        <tr><td>21 CFR Part 11</td><td>Audit trail via SAS log + Git history</td></tr>
+        <tr><td>Validation</td><td>Validated SAS step for regulatory output; R for exploratory</td></tr>
+        <tr><td>Multi-project isolation</td><td>Separate virtual env per project</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>Governance &amp; Environment Management</span><span></span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 20  —  QUICK REFERENCE
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Quick reference — callback methods</h2>
+  <table>
+    <tr><th>Action</th><th>PROC PYTHON</th><th>PROC R</th></tr>
+    <tr><td>Submit block</td><td><code>submit; ... endsubmit;</code></td><td><code>submit; ... endsubmit;</code></td></tr>
+    <tr><td>SAS dataset &rarr; language</td><td><code>SAS.sd2df("lib.ds")</code></td><td><code>sd2df("lib.ds")</code></td></tr>
+    <tr><td>DataFrame &rarr; SAS</td><td><code>SAS.df2sd(df, "lib.ds")</code></td><td><code>df2sd(df, "lib.ds")</code></td></tr>
+    <tr><td>Read macro var</td><td><code>SAS.symget("name")</code></td><td><code>symget("name")</code></td></tr>
+    <tr><td>Write macro var</td><td><code>SAS.symput("name", val)</code></td><td><code>symput("name", val)</code></td></tr>
+    <tr><td>Call SAS function</td><td><code>SAS.sasfnc("func", arg)</code></td><td><code>sasfnc("func", arg)</code></td></tr>
+    <tr><td>Log output</td><td><code>print()</code></td><td><code>cat()</code> / <code>message()</code></td></tr>
+    <tr><td>Results window</td><td><code>SAS.show(fig_or_df)</code></td><td><code>show(obj)</code></td></tr>
+    <tr><td>Render plot</td><td><code>SAS.show(matplotlib_fig)</code></td><td><code>rplot(ggplot_obj)</code></td></tr>
+    <tr><td>Render saved image</td><td><code>SAS.show("/path/file.png")</code></td><td><code>renderImage("/path/file.png")</code></td></tr>
+    <tr><td>External script</td><td><code>proc python infile=&quot;f.py&quot;;</code></td><td><code>proc r infile="f.R";</code></td></tr>
+    <tr><td>Pharma sweet spot</td><td>APIs · cloud · ingestion · Office365</td><td>Clinical stats · KM · MMRM · TLFs</td></tr>
+  </table>
+  <div class="slide-footer"><span class="logo">SAS</span><span>Quick Reference</span><span></span></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SLIDE 21  —  RESOURCES & CLOSE
+     ════════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <h2>Resources &amp; next steps</h2>
+  <div class="cols">
+    <div class="col">
+      <h3>PROC R blog series (SAS Communities)</h3>
+      <ul>
+        <li><strong>Part 1</strong> — Getting started: sd2df, df2sd, symget, symput, show</li>
+        <li><strong>Part 2</strong> — sasfnc(), rplot(), renderImage(), multiple plots</li>
+        <li><strong>Part 3</strong> — Creating and calling external .R scripts</li>
+        <li><strong>Part 4</strong> — R Program step in SAS Data and AI Studio Flows</li>
+      </ul>
+      <h3>PROC PYTHON</h3>
+      <ul>
+        <li>SAS Communities: <em>"Using PROC PYTHON to augment your SAS programs"</em></li>
+        <li>SAS Blog: <em>"Python à la carte"</em> — virtual environments</li>
+        <li>PharmaSUG 2026 ET-207</li>
+        <li>MWSUG 2024 BB-093</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h3>Workshop files</h3>
+      <table>
+        <tr><th>File</th><th>Purpose</th></tr>
+        <tr><td><code>demo_procR_clinical.sas</code></td><td>Full runnable demo script</td></tr>
+        <tr><td><code>demo_procR_clinical.md</code></td><td>Annotated walkthrough with discussion points</td></tr>
+        <tr><td><code>slides.html</code></td><td>This presentation</td></tr>
+      </table>
+      <h3>SAS documentation</h3>
+      <ul>
+        <li>PROC PYTHON reference — <em>SAS Viya: Procedures</em></li>
+        <li>PROC R reference — <em>SAS Viya: Procedures</em> (2026.03+)</li>
+        <li>Virtual environments — GitHub: <em>sas-studio-custom-steps / Python Create Virtual Environment</em></li>
+      </ul>
+      <div class="tip" style="margin-top:12px">
+        <strong>Questions?</strong>
+        Run any section of <code>demo_procR_clinical.sas</code> — each section is independent. Change <code>%let sponsor</code>, <code>%let trt_filter</code>, or <code>%let endpoint</code> to explore different results.
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="logo">SAS</span><span>PROC PYTHON &amp; PROC R Workshop</span><span></span></div>
+</div>
+
+</div><!-- #deck -->
+
+<!-- Navigation -->
+<div id="nav">
+  <button class="btn-prev" onclick="go(-1)">&#8592; Prev</button>
+  <span class="counter" id="counter">1 / 21</span>
+  <button class="btn-next" onclick="go(1)">Next &#8594;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  let cur = 0;
+
+  function show(n) {
+    slides[cur].classList.remove('active');
+    cur = (n + slides.length) % slides.length;
+    slides[cur].classList.add('active');
+    counter.textContent = (cur + 1) + ' / ' + slides.length;
+    progress.style.width = ((cur + 1) / slides.length * 100) + '%';
+  }
+
+  function go(dir) { show(cur + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') go(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                     go(-1);
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End')  show(slides.length - 1);
+  });
+
+  // Touch swipe
+  let tx = 0;
+  document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+  document.addEventListener('touchend',   e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+  });
+
+  show(0);
+</script>
+</body>
+</html>
