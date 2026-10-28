@@ -55,7 +55,7 @@ for (i in seq_len(nrow(ip))) {
 }
 
 # Pass full list to SAS as a dataset so PROC PRINT can show it in results
-df2sd(ip, "work.r_packages")
+df2sd(ip, "r_packages")
 endsubmit;
 run;
 
