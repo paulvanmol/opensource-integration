@@ -131,7 +131,7 @@ for (i in seq_len(nrow(ip)))
   cat(sprintf("%-28s %s\n",
       ip$Package[i], ip$Version[i]))
 # Export to SAS for PROC PRINT
-df2sd(ip, "work.r_packages")
+df2sd(ip, "r_packages","work")
 endsubmit;
 run;
 ```
@@ -157,7 +157,7 @@ SAS.df2sd(df, "work.result")   # pandas → SAS
 ```r
 # R — no prefix, functions injected directly
 adsl <- sd2df("work.adsl")       # SAS → data.frame
-df2sd(df, "work.result")        # data.frame → SAS
+df2sd(df, "result","work")        # data.frame → SAS
 ```
 
 ### Macro variables
