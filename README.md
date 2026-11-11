@@ -1,5 +1,5 @@
 # PROC PYTHON & PROC R in SAS Viya
-### Open-Source Integration Workshop — Novo Nordisk / Servier
+### Open-Source Integration Workshop
 
 A complete workshop package for experienced SAS programmers covering **PROC PYTHON** and **PROC R** in SAS Viya. Includes a slide deck, a runnable demo script, a trainer walkthrough, and hands-on exercises — all grounded in ADaM clinical datasets.
 
